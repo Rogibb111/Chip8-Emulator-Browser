@@ -56,7 +56,7 @@ function getInstruction(opcode) {
 }
 
 const instructionMap = {
-    // 0x0nnn - SYS addr
+    // 0nnn - SYS addr
     0x0: (opcode, { pc }) => {
         pc = opcode;
     },
@@ -64,22 +64,22 @@ const instructionMap = {
     0x00E0: () => {
         // clear the display
     },
-    // 0x00EE - RET
+    // 00EE - RET
     0x00EE: (opcode, { pc, stack, sp }) => {
         pc = stack[sp];
         sp -= 1;
     },
-    // 0x1nnn - JP addr
+    // 1nnn - JP addr
     0x1: (opcode, { pc }) => {
         pc = opcode & 0x0FFF;
     },
-    // 0x2nnn - CALL addr 
+    // 2nnn - CALL addr 
     0x2: (opcode, { pc, stack, sp }) => {
         sp += 1;
         stack[sp] = pc;
         pc = opcode & 0x0FFF;
     },
-    // 0x3xkk - SE Vx, byte
+    // 3xkk - SE Vx, byte
     0x3: (opcode, { v, pc }) => {
         const register = opcode & 0x0F00;
         const compareVal = opcode & 0x00FF; 
@@ -88,7 +88,7 @@ const instructionMap = {
             pc += 2;
         }
     },
-    // 0x4xkk SNE Vx, byte
+    // 4xkk SNE Vx, byte
     0x4: (opcode, { v, pc }) => {
         const register = opcode & 0x0F00;
         const compareVal = opcode & 0x00FF; 
@@ -97,7 +97,7 @@ const instructionMap = {
             pc += 2;
         }
     },
-    // 0x5xy0 SNE Vx, byte
+    // 5xy0 SNE Vx, byte
     0x5: (opcode, { v, pc }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0; 
@@ -106,14 +106,14 @@ const instructionMap = {
             pc += 2;
         }
     },
-    // 0x6xkk - LD Vx, byte
+    // 6xkk - LD Vx, byte
     0x6: (opcode, { v }) => {
         const data = opcode & 0x00FF;
         const register = opcode & 0x0F00;
 
         v[register] = data;
     },
-    // 0x7xkk - ADD Vx, byte
+    // 7xkk - ADD Vx, byte
     0x7: (opcode, { v }) => {
         const data = opcode & 0x00FF;
         const register = opcode & 0x0F00;
@@ -146,14 +146,86 @@ const instructionMap = {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         
-        v[x] = v[x] | v[y];
+        v[x] ^= v[y];
     },
     // 8xy4 - ADD Vx, Vy
     0x8004: (opcode, { v }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
-        
-        v[x] = v[x] | v[y];
-    },
+        let result = x + y;
+        v[0xF] = 0;
 
+        if (result > 0xFF) {
+            v[0xF] = 1;
+            result &= 0xFF; 
+        }
+        
+        v[x] = result;
+    },
+    // 8xy5 - SUB Vx, Vy
+    0x8005: (opcode, { v }) => {
+        const x = opcode & 0x0F00;
+        const y = opcode & 0x00F0;
+        v[0xF] = 0;
+
+        if (x > y) {
+            v[0xF] = 1;
+        }
+        
+        v[x] -= v[y];
+    },
+    // 8xy6 - SHR Vx {, Vy}
+    0x8006: (opcode, { v }) => {
+        v[0xF] = 0x0001 & opcode;
+        v[x] /= 2; 
+    },
+    // 8xy7 - SUBN Vx, Vy
+    0x8007: () => {
+        const x = opcode & 0x0F00;
+        const y = opcode & 0x00F0;
+        v[0xF] = 0;
+
+        if (y > x) {
+            v[0xF] = 1;
+        }
+        
+        v[x] = v[y] - v[x];
+    },
+    // 8xyE - SHL Vx {, Vy}
+    0x800E: (opcode, { v }) => {
+        v[0xF] = 0x8000 & opcode;
+        v[x] *= 2; 
+    },
+    // 9xy0 - SNE Vx, Vy
+    0x9: (opcode, { v, pc }) => {
+        const x = opcode & 0x0F00;
+        const y = opcode & 0x00F0;
+
+        if (v[x] !== v[y]) {
+            pc +=2
+        }
+    },
+    // Annn - LD I, addr
+    0xA: (opcode, { i }) => {
+        i = opcode & 0x0FFF;
+    },
+    // Bnnn - JP V0, addr
+    0xB: (opcode, { v, pc }) => {
+        pc = (0x0FFF & opcode) + v[0];
+    },
+    // Cxkk - RND Vx, byte
+    0xC: (opcode, { v, pc }) => {
+        const x = 0x0F00 & opcode;
+        const rand = Math.floor(Math.random() * Math.floor(0xFF));
+
+        v[x] = rand & (0xFF & opcode);
+    },
+    // Dxyn - DRW Vx, Vy, nibble
+    0xD: (opcode, { v, i, memory }) => {
+        const x = 0x0F00 & opcode;
+        const y = 0x00F0 & opcode;
+        const n = 0x000F & opcode;
+
+        const sprite = memory.slice(i, n+1);
+    }
 };
