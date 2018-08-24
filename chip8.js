@@ -1,3 +1,17 @@
+function createGraphicsMemory() {
+    const memory = new Array(63);
+    
+    for (let i = 0; i < memory.length; i += 1) {
+        const column = new Array(31);
+        for (let j = 0; j < column.length; j += 1) {
+            column[j] = false;
+        }
+        memory[i] = column;
+    }
+
+    return memory;
+}
+
 const state = {
         // Program counter
         pc: 0,
@@ -21,7 +35,10 @@ const state = {
         delayTimer: 0,
 
         // Sound timer
-        soundTimer: 0
+        soundTimer: 0,
+
+        // Graphics memory
+        graphicsMemory: createGraphicsMemory()
 };
 
 class chip8 {
