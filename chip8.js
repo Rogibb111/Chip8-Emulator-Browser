@@ -1,15 +1,18 @@
-function createGraphicsMemory() {
-    const memory = new Array(63);
+const SCREEN_WIDTH = 63;
+const SCREEN_HEIGHT = 31;
+
+function getDefaultScreen() {
+    const screenY = new Array(SCREEN_HEIGHT);
     
-    for (let i = 0; i < memory.length; i += 1) {
-        const column = new Array(31);
-        for (let j = 0; j < column.length; j += 1) {
-            column[j] = false;
+    for (let i = 0; i < screenY.length; i += 1) {
+        const screenX = new Array(SCREEN_WIDTH);
+        for (let j = 0; j < screenX.length; j += 1) {
+            screenX[j] = false;
         }
-        memory[i] = column;
+        screenY[i] = screenX;
     }
 
-    return memory;
+    return screenY;
 }
 
 const state = {
@@ -37,8 +40,8 @@ const state = {
         // Sound timer
         soundTimer: 0,
 
-        // Graphics memory
-        graphicsMemory: createGraphicsMemory()
+        // screen[y][x] 
+        screen: getDefaultScreen()()
 };
 
 class chip8 {
@@ -286,11 +289,23 @@ const instructionMap = {
         return Object.assign(rest, { v });
     },
     // Dxyn - DRW Vx, Vy, nibble
-    0xD: (opcode, { v, i, memory, ...rest }) => {
-        const x = 0x0F00 & opcode;
-        const y = 0x00F0 & opcode;
+    0xD: (opcode, { v, i, memory, screen,  ...rest }) => {
+        const vX = v[0x0F00 & opcode];
+        const vY = v[0x00F0 & opcode];
         const n = 0x000F & opcode;
 
         const sprite = memory.slice(i, n+1);
+	
+	for (let i = 0; i < sprite.length; i += 1) {
+		const row = sprite[i];
+		const byte = row.toString(2);
+		const fullByte = "00000000".substring(byte.length) + byte;
+		const screenY = (vY + i) % 63;
+		for (let j = 0; j < 8; j += 1) {
+			const screenX = (vX + j) % 63;
+			
+			v[screenY][screenX] = fullByte.charAt(j); 
+		}				
+	}	
     }
 };
