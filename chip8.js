@@ -41,7 +41,7 @@ class chip8 {
             const { memory, pc } = this.state;
             const opcode = memory[pc] << 8 | memory[pc + 1];
             const instruction = getInstruction(opcode);
-            instruction(opcode, this.state);
+            this.state = instruction(opcode, JSON.parse(JSON.stringify(this.state)));
         }
 
         window.requestAnimationFrame(this.run);
@@ -57,99 +57,128 @@ function getInstruction(opcode) {
 
 const instructionMap = {
     // 0nnn - SYS addr
-    0x0: (opcode, { pc }) => {
-        pc = opcode;
+    0x0: (opcode, state) => {
+        const pc = 0x0FFF & opcode;
+
+        return Object.assign(state, { pc });
     },
     // 00E0 - CLS
     0x00E0: () => {
         // clear the display
     },
     // 00EE - RET
-    0x00EE: (opcode, { pc, stack, sp }) => {
-        pc = stack[sp];
-        sp -= 1;
+    0x00EE: (opcode, { sp, stack, ...rest }) => {
+        const pc = stack[sp];
+        const newSp = sp - 1;
+
+        return Object.assign(rest, { pc, sp: newSp, stack });
     },
     // 1nnn - JP addr
-    0x1: (opcode, { pc }) => {
-        pc = opcode & 0x0FFF;
+    0x1: (opcode, state) => {
+        const pc = opcode & 0x0FFF;
+
+        return Object.assign(state, { pc });
     },
     // 2nnn - CALL addr 
-    0x2: (opcode, { pc, stack, sp }) => {
-        sp += 1;
+    0x2: (opcode, { pc, stack, sp, ...rest }) => {
+        const newSp = sp + 1;
+        const newPc = opcode & 0x0FFF;
         stack[sp] = pc;
-        pc = opcode & 0x0FFF;
+
+        return Object.assign(rest, { stack, sp: newSp, pc: newPc });
     },
     // 3xkk - SE Vx, byte
-    0x3: (opcode, { v, pc }) => {
+    0x3: (opcode, { v, pc,  ...rest }) => {
         const register = opcode & 0x0F00;
         const compareVal = opcode & 0x00FF; 
+        let newPc = pc;
         
         if (v[register] === compareVal) {
-            pc += 2;
+            newPc += 2;
         }
+
+        return Object.assign(rest, { pc: newPc, v });
     },
     // 4xkk SNE Vx, byte
-    0x4: (opcode, { v, pc }) => {
+    0x4: (opcode, { v, pc, ...rest }) => {
         const register = opcode & 0x0F00;
         const compareVal = opcode & 0x00FF; 
-        
+        let newPc = pc;
+
         if (v[register] !== compareVal) {
-            pc += 2;
+            newPc += 2;
         }
+
+        return Object.assign(rest, { pc: newPc, v});
     },
-    // 5xy0 SNE Vx, byte
-    0x5: (opcode, { v, pc }) => {
+    // 5xy0 SE Vx, Vy
+    0x5: (opcode, { v, pc, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0; 
-        
-        if (x === y) {
-            pc += 2;
+        let newPc = pc;
+
+        if (v[x] === v[y]) {
+            newPc += 2;
         }
+
+        return Object.assign(rest, { pc: newPc, v });
     },
     // 6xkk - LD Vx, byte
-    0x6: (opcode, { v }) => {
+    0x6: (opcode, { v, ...rest }) => {
         const data = opcode & 0x00FF;
         const register = opcode & 0x0F00;
 
         v[register] = data;
+
+        return Object.assign(rest, { v });
     },
     // 7xkk - ADD Vx, byte
-    0x7: (opcode, { v }) => {
+    0x7: (opcode, { v, ...rest }) => {
         const data = opcode & 0x00FF;
         const register = opcode & 0x0F00;
 
         v[register] += data;
+
+        return Object.assign(rest, { v });
     },
     // 8xy0 - LD Vx, Vy
-    0x8000: (opcode, { v }) => {
+    0x8000: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         
         v[x] = v[y];
+
+        return Object.assign(rest, { v });
     },
     // 8xy1 - OR Vx, Vy
-    0x8001: (opcode, { v }) => {
+    0x8001: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         
         v[x] = v[x] | v[y];
+
+        return Object.assign(rest, { v });
     },
     // 8xy2 - AND Vx, Vy
-    0x8002: (opcode, { v }) => {
+    0x8002: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         
         v[x] = v[x] & v[y];
+
+        return Object.assign(rest, { v });
     },
     // 8xy3 - XOR Vx, Vy
-    0x8003: (opcode, { v }) => {
+    0x8003: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         
         v[x] ^= v[y];
+
+        return Object.assign(rest, { v });
     },
     // 8xy4 - ADD Vx, Vy
-    0x8004: (opcode, { v }) => {
+    0x8004: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         let result = x + y;
@@ -161,9 +190,11 @@ const instructionMap = {
         }
         
         v[x] = result;
+
+        return Object.assign(rest, { v });
     },
     // 8xy5 - SUB Vx, Vy
-    0x8005: (opcode, { v }) => {
+    0x8005: (opcode, { v, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
         v[0xF] = 0;
@@ -173,11 +204,15 @@ const instructionMap = {
         }
         
         v[x] -= v[y];
+
+        return Object.assign(rest, { v });
     },
     // 8xy6 - SHR Vx {, Vy}
-    0x8006: (opcode, { v }) => {
+    0x8006: (opcode, { v, ...rest }) => {
         v[0xF] = 0x0001 & opcode;
         v[x] /= 2; 
+
+        return Object.assign(rest, { v });
     },
     // 8xy7 - SUBN Vx, Vy
     0x8007: () => {
@@ -190,38 +225,51 @@ const instructionMap = {
         }
         
         v[x] = v[y] - v[x];
+
+        return Object.assign(rest, { v });
     },
     // 8xyE - SHL Vx {, Vy}
-    0x800E: (opcode, { v }) => {
+    0x800E: (opcode, { v, ...rest }) => {
         v[0xF] = 0x8000 & opcode;
         v[x] *= 2; 
+
+        return Object.assign(rest, { v });
     },
     // 9xy0 - SNE Vx, Vy
-    0x9: (opcode, { v, pc }) => {
+    0x9: (opcode, { v, pc, ...rest }) => {
         const x = opcode & 0x0F00;
         const y = opcode & 0x00F0;
+        let newPc = pc;
 
         if (v[x] !== v[y]) {
-            pc +=2
+            newPc +=2
         }
+
+        return Object.assign(rest, { pc: newPc, v });
     },
     // Annn - LD I, addr
-    0xA: (opcode, { i }) => {
-        i = opcode & 0x0FFF;
+    0xA: (opcode, state) => {
+        const i = opcode & 0x0FFF;
+
+        return Object.assign(state, { i });
     },
     // Bnnn - JP V0, addr
-    0xB: (opcode, { v, pc }) => {
-        pc = (0x0FFF & opcode) + v[0];
+    0xB: (opcode, { v, ...rest }) => {
+        const pc = (0x0FFF & opcode) + v[0];
+
+        return Object.assign(rest, { pc, v });
     },
     // Cxkk - RND Vx, byte
-    0xC: (opcode, { v, pc }) => {
+    0xC: (opcode, { v, ...rest }) => {
         const x = 0x0F00 & opcode;
         const rand = Math.floor(Math.random() * Math.floor(0xFF));
 
         v[x] = rand & (0xFF & opcode);
+
+        return Object.assign(rest, { v });
     },
     // Dxyn - DRW Vx, Vy, nibble
-    0xD: (opcode, { v, i, memory }) => {
+    0xD: (opcode, { v, i, memory, ...rest }) => {
         const x = 0x0F00 & opcode;
         const y = 0x00F0 & opcode;
         const n = 0x000F & opcode;
