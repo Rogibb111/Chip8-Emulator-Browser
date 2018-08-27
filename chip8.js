@@ -304,8 +304,10 @@ const instructionMap = {
 		for (let j = 0; j < 8; j += 1) {
 			const screenX = (vX + j) % 63;
 			
-			v[screenY][screenX] = fullByte.charAt(j); 
+			screen[screenY][screenX] ^= fullByte.charAt(j); 
 		}				
-	}	
+	}
+	
+	Object.assign(rest, { v, i, memory, screen });	
     }
 };
