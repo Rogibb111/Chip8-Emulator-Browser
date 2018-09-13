@@ -41,7 +41,10 @@ const state = {
         soundTimer: 0,
 
         // screen[y][x] 
-        screen: getDefaultScreen()()
+        screen: getDefaultScreen(),
+
+        // keyboard presses
+        pressedKeys: []
 };
 
 class chip8 {
@@ -296,18 +299,62 @@ const instructionMap = {
 
         const sprite = memory.slice(i, n+1);
 	
-	for (let i = 0; i < sprite.length; i += 1) {
-		const row = sprite[i];
-		const byte = row.toString(2);
-		const fullByte = "00000000".substring(byte.length) + byte;
-		const screenY = (vY + i) % 63;
-		for (let j = 0; j < 8; j += 1) {
-			const screenX = (vX + j) % 63;
-			
-			screen[screenY][screenX] ^= fullByte.charAt(j); 
-		}				
-	}
+        for (let i = 0; i < sprite.length; i += 1) {
+            const row = sprite[i];
+            const byte = row.toString(2);
+            const fullByte = "00000000".substring(byte.length) + byte;
+            const screenY = (vY + i) % 63;
+            for (let j = 0; j < 8; j += 1) {
+                const screenX = (vX + j) % 63;
+                
+                screen[screenY][screenX] ^= fullByte.charAt(j);
+                if (!screen[screenY][screenX]) {
+                    v[0xF] = 1;
+                }
+            }
+        }
 	
-	Object.assign(rest, { v, i, memory, screen });	
+        return Object.assign(rest, { v, i, memory, screen });	
+    },
+    // Ex9E - SKP Vx
+    0xE00E: (opcode, { v, pc, pressedKeys, ...rest }) => {
+        let newPc = pc;
+
+        if (pressedKeys.includes(v[opcode & 0x0F00])) {
+            newPc += 2;
+        
+        }
+
+        Object.assign(rest, { pc: newPc, v, pressedKeys })
+    },
+    // ExA1 - SKNP Vx
+    0xE001: (opcode, { v, pc, pressedKeys, ...rest }) => {
+        let newPc = pc;
+
+        if (!pressedKeys.includes(v[opcode & 0x0F00])) {
+            newPc += 2;
+        
+        }
+
+        Object.assign(rest, { pc: newPc, v, pressedKeys })
+    },
+    // Fx07 - LD Vx, DT
+    0xF007: (opcode, { v, delayTimer, ...rest }) => {
+        const x = 0x0F00 & opcode;
+
+        v[x] = delayTimer;
+
+        Object.assign(rest, { v, delayTimer });
+    },
+    //Fx0A - LD Vx, K
+    0xF00A: (opcode, { v, pressedKeys }) => {
+
+    },
+    //Fx15 - LD DT, Vx
+    0xF005: (opcode, { v, ...rest}) => {
+        const x = 0x0F00 & opcode;
+
+        Object.assign(rest, { v, delayTimer: v[x] });
     }
+
 };
