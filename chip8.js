@@ -15,6 +15,34 @@ function getDefaultScreen() {
     return screenY;
 }
 
+function getInstruction(opcode) {
+    const firstDigit = opcode & 0xF000; 
+    switch(firstDigit) {
+        case 0x0:
+            const thirdAndFourthDigits = opcode & 0x00FF;
+            
+            if (thirdAndFourthDigits === 0xE0 ||
+                thirdAndFourthDigits === 0xEE) {
+                return instructionMap[opcode];
+            }
+
+            return instructionMap[firstDigit];
+        case 0x8:
+        case 0xE:
+            return instructionMap[opcode & 0xF00F];
+        case 0xF:
+            const lastDigit = 0x000F;
+
+            if (lastDigit = 0x5) {
+                return instructionMap[opcode & 0xF0FF];
+            }
+
+            return instructionMap[opcode &0xF00F];
+        default:
+            return instructionMap[firstDigit];
+    }
+}
+
 const state = {
         // Program counter
         pc: 0,
@@ -74,15 +102,22 @@ class chip8 {
         window.requestAnimationFrame(this.run);
     }
 
-}
-
-function getInstruction(opcode) {
-    switch(opcode & 0xF000) {
-        case 0x0:
-            break;
-        case 0x8:
-            break;
+    attachKeyPressCallbacks(element) {
+        element.eventHandler('onkeydown',(e) => {
+            this.state.pressedKeys.push(e.key);
+            this.state.haltForKeyPress = false;
+        });
+        element.eventHandler('onkeyup',(e) => {
+            this.state.pressedKeys.filter((key) => {
+                return key != e.key;
+            })
+        });
     }
+
+    removeKeyPressCallbacks(element) {
+        //forget how to do this
+    }
+
 }
 
 const instructionMap = {
@@ -432,4 +467,23 @@ const hexDisplayMap = {
     0xD: 0x40,
     0xE: 0x45,
     0xF: 0x4A
+}
+
+const keyMap = {
+    0x0: ,
+    0x1: ,
+    0x2: ,
+    0x3: ,
+    0x4: ,
+    0x5: ,
+    0x6: ,
+    0x7: ,
+    0x8: ,
+    0x9: ,
+    0xA: ,
+    0xB: ,
+    0xC: ,
+    0xD: ,
+    0xE: ,
+    0xF: 
 }
