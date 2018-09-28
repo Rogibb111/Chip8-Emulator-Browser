@@ -44,8 +44,10 @@ const state = {
         screen: getDefaultScreen(),
 
         // keyboard presses
-        pressedKeys: []
-};
+        pressedKeys: [],
+
+        // halted until a key is pressed
+};      haltForKeyPress: false
 
 class chip8 {
 
@@ -61,10 +63,12 @@ class chip8 {
 
     run() {
         for(let x = 0; x < 10; x+=1) {
-            const { memory, pc } = this.state;
-            const opcode = memory[pc] << 8 | memory[pc + 1];
-            const instruction = getInstruction(opcode);
-            this.state = instruction(opcode, JSON.parse(JSON.stringify(this.state)));
+            if (!this.state.haltForKeyPress) {
+                const { memory, pc } = this.state;
+                const opcode = memory[pc] << 8 | memory[pc + 1];
+                const instruction = getInstruction(opcode);
+                this.state = instruction(opcode, JSON.parse(JSON.stringify(this.state)));
+            }
         }
 
         window.requestAnimationFrame(this.run);
@@ -74,7 +78,10 @@ class chip8 {
 
 function getInstruction(opcode) {
     switch(opcode & 0xF000) {
-        
+        case 0x0:
+            break;
+        case 0x8:
+            break;
     }
 }
 
@@ -347,8 +354,8 @@ const instructionMap = {
         return Object.assign(rest, { v, delayTimer });
     },
     //Fx0A - LD Vx, K
-    0xF00A: (opcode, { v, pressedKeys }) => {
-
+    0xF00A: (opcode, { v, ...rest }) => {
+        return Object.assign(rest, { v, haltForKeyPress: true });
     },
     //Fx15 - LD DT, Vx
     0xF015: (opcode, { v, ...rest }) => {
