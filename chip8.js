@@ -325,7 +325,7 @@ const instructionMap = {
         
         }
 
-        Object.assign(rest, { pc: newPc, v, pressedKeys })
+        return Object.assign(rest, { pc: newPc, v, pressedKeys })
     },
     // ExA1 - SKNP Vx
     0xE001: (opcode, { v, pc, pressedKeys, ...rest }) => {
@@ -336,7 +336,7 @@ const instructionMap = {
         
         }
 
-        Object.assign(rest, { pc: newPc, v, pressedKeys })
+        return Object.assign(rest, { pc: newPc, v, pressedKeys })
     },
     // Fx07 - LD Vx, DT
     0xF007: (opcode, { v, delayTimer, ...rest }) => {
@@ -344,17 +344,58 @@ const instructionMap = {
 
         v[x] = delayTimer;
 
-        Object.assign(rest, { v, delayTimer });
+        return Object.assign(rest, { v, delayTimer });
     },
     //Fx0A - LD Vx, K
     0xF00A: (opcode, { v, pressedKeys }) => {
 
     },
     //Fx15 - LD DT, Vx
-    0xF005: (opcode, { v, ...rest}) => {
+    0xF015: (opcode, { v, ...rest }) => {
         const x = 0x0F00 & opcode;
 
-        Object.assign(rest, { v, delayTimer: v[x] });
+        return Object.assign(rest, { v, delayTimer: v[x] });
+    },
+    //Fx18 - LD ST, Vx
+    0xF008: (opcode, { v, ...rest }) => {
+        const x = 0x0F00 & opcode;
+
+        return Object.assign(rest, { v, soundTimer: v[x] });
+    },
+    //Fx1E - ADD I, Vx
+    0xF00E: (opcode, { v, i, ...rest }) => {
+        const x = 0x0F00 & opcode;
+
+        return Object.assign(rest, { v, i: i + v[x] });
+    },
+    //Fx29 - LD F, Vx
+    0xF009: (opcode, { v, ...rest }) => {
+        const x = 0x0F00 & opcode;
+
+        return Object.assign(rest, { v, i: hexDisplayMap[v[x]] });
+    },
+    //Fx33 - LD B, Vx
+    0xF003: (opcode, { v, i }) => {
+        
     }
 
 };
+
+const hexDisplayMap = {
+    0x0: 0x00,
+    0x1: 0x05,
+    0x2: 0x0A,
+    0x3: 0x0E,
+    0x4: 0x13,
+    0x5: 0x18,
+    0x6: 0x1D,
+    0x7: 0x22,
+    0x8: 0x27,
+    0x9: 0x2C,
+    0xA: 0x31,
+    0xB: 0x36,
+    0xC: 0x3B,
+    0xD: 0x40,
+    0xE: 0x45,
+    0xF: 0x4A
+}
