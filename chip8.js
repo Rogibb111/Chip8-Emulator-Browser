@@ -375,8 +375,35 @@ const instructionMap = {
         return Object.assign(rest, { v, i: hexDisplayMap[v[x]] });
     },
     //Fx33 - LD B, Vx
-    0xF003: (opcode, { v, i }) => {
+    0xF003: (opcode, { v, i, memory }) => {
+        const val = v[0x0F00 & opcode];
+        const strVal = val.toString();
+        const fullVal = "000".substring(strVal.length) + strval;
+
+        for (let j = 0; j < 3; j+=1) {
+            memory[i+j] = fullVal[j];
+        }
         
+        return Object.assign(rest, { v, i, memory });
+    },
+    //Fx55 - LD [I], Vx
+    0xF055: (opcode, { v, i, memory }) => {
+        const x = 0x0F00 & opcode;
+
+        for (let j = 0; j <= x; j+=1) {
+            memory[i+j] = v[j];
+        }
+
+        Object.assign(rest, { v, i, memory });
+    },
+    //Fx65 - LD Vx, [I]
+    0xF065: (opcode, { v, i, memory }) => {
+        const x = 0x0F00 & opcode;
+
+        for (let j = 0; j <= x; j+=1) {
+            v[j] = memory[i+j];
+        }
+        Object.assign(rest, { v, i, memory });
     }
 
 };
