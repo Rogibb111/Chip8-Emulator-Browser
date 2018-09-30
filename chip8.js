@@ -1,3 +1,5 @@
+'use strict';
+
 const SCREEN_WIDTH = 63;
 const SCREEN_HEIGHT = 31;
 
@@ -43,7 +45,7 @@ function getInstruction(opcode) {
     }
 }
 
-const state = {
+const defaultState = {
         // Program counter
         pc: 0,
 
@@ -77,47 +79,70 @@ const state = {
         // halted until a key is pressed
 };      haltForKeyPress: false
 
-class chip8 {
+let state = {};
 
-    constructor() {
-        this.state = JSON.parse(JSON.stringify(state));
-        this.state.stack[0] = 0;
-    }
 
-    reset() {
-        this.state = JSON.parse(JSON.stringify(state));
-        this.state.stack[0] = 0;
-    }
+function constructor() {
+    reset();
+    run();
+}
 
-    run() {
-        for(let x = 0; x < 10; x+=1) {
-            if (!this.state.haltForKeyPress) {
-                const { memory, pc } = this.state;
-                const opcode = memory[pc] << 8 | memory[pc + 1];
-                const instruction = getInstruction(opcode);
-                this.state = instruction(opcode, JSON.parse(JSON.stringify(this.state)));
-            }
+function reset() {
+    state = JSON.parse(JSON.stringify(state));
+    state.stack[0] = 0;
+}
+
+function run() {
+    for(let x = 0; x < 10; x+=1) {
+        if (!state.haltForKeyPress) {
+            const { memory, pc } = state;
+            const opcode = memory[pc] << 8 | memory[pc + 1];
+            const instruction = getInstruction(opcode);
+            state = instruction(opcode, JSON.parse(JSON.stringify(state)));
+            printState();
         }
-
-        window.requestAnimationFrame(this.run);
     }
 
-    attachKeyPressCallbacks(element) {
-        element.eventHandler('onkeydown',(e) => {
-            this.state.pressedKeys.push(e.key);
-            this.state.haltForKeyPress = false;
-        });
-        element.eventHandler('onkeyup',(e) => {
-            this.state.pressedKeys.filter((key) => {
-                return key != e.key;
-            })
-        });
-    }
+    window.requestAnimationFrame(run);
+}
 
-    removeKeyPressCallbacks(element) {
-        //forget how to do this
-    }
+function keyDownCallback({ keyCode }) {
+    state.pressedKeys.push(keyCode);
+    state.haltForKeyPress = false;
+}
 
+function keyUpCallback({ keyCode }) {
+    state.pressedKeys.filter((key) => {
+        return key != keyCode;
+    });
+}
+
+function attachKeyPressCallbacks(element) {
+    element.addEventListener('keydown', keyDownCallback);
+    element.addEventListener('keyup', keyUpCallback);
+}
+
+function removeKeyPressCallbacks(element) {
+    element.removeEventListener('keydown', keyDownCallback);
+    element.removeEventListener('keyup', keyUpCallback);
+}
+
+function loadRomToMemory(rom) {
+    const romIntArray = new Uint8Array(rom);
+
+    reset();
+    state.memory.splice(0x200,romIntArray.length, ...romIntArray);
+}
+
+function printState() {
+    console.log('________________________________');
+    console.log(`PC:            ${state.pc}`);
+    console.log(`Stack:         ${state.stack}`);
+    console.log(`Sp:            ${state.sp}`);
+    console.log(`V:             ${state.v}`);
+    console.log(`I:             ${state.i}`);
+    console.log(`DelayTimer:    ${state.delayTimer}`);
+    console.log(`SoundTimer:`)
 }
 
 const instructionMap = {
@@ -470,20 +495,22 @@ const hexDisplayMap = {
 }
 
 const keyMap = {
-    0x0: ,
-    0x1: ,
-    0x2: ,
-    0x3: ,
-    0x4: ,
-    0x5: ,
-    0x6: ,
-    0x7: ,
-    0x8: ,
-    0x9: ,
-    0xA: ,
-    0xB: ,
-    0xC: ,
-    0xD: ,
-    0xE: ,
-    0xF: 
+    0x0: 88,
+    0x1: 49,
+    0x2: 50,
+    0x3: 51,
+    0x4: 81,
+    0x5: 87,
+    0x6: 69,
+    0x7: 65,
+    0x8: 83,
+    0x9: 68,
+    0xA: 90,
+    0xB: 67,
+    0xC: 52,
+    0xD: 82,
+    0xE: 70,
+    0xF: 86
 }
+
+constructor();
