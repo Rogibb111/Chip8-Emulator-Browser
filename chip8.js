@@ -5,16 +5,35 @@ const SCREEN_HEIGHT = 31;
 
 function getDefaultScreen() {
     const screenY = new Array(SCREEN_HEIGHT);
+    const screenElement = document.getElementById('screen');
+    const screenClone = screenElement.cloneNode(false);
+    screenClone.insertAdjacentHTML('beforeend', `<rect id="background" x="0" y="0" width="100%" height="100%" fill="black" />`);
+    
     
     for (let i = 0; i < screenY.length; i += 1) {
         const screenX = new Array(SCREEN_WIDTH);
         for (let j = 0; j < screenX.length; j += 1) {
+            screenClone.insertAdjacentHTML('beforeend', `<rect id="${j}_${i}" x="${j}" y="${i}" width="1" height="1" />`);
             screenX[j] = false;
         }
         screenY[i] = screenX;
     }
 
+    screenElement.parentNode.replaceChild(screenClone, screenElement);
     return screenY;
+}
+
+function  writeToSvg(screen) {
+    for (let i = 0; i < SCREEN_HEIGHT; i += 1) {
+        for (let j = 0; j <SCREEN_WIDTH; j += 1) {
+            const pixel = document.getElementById(`${j}_${i}`);
+            if (screen[i][j]) {
+                pixel.setAttribute('fill','green');
+            } else {
+                pixel.setAttribute('fill','black');
+            }
+        }
+    }
 }
 
 function getInstruction(opcode) {
@@ -88,7 +107,7 @@ function constructor() {
 }
 
 function reset() {
-    state = JSON.parse(JSON.stringify(state));
+    state = JSON.parse(JSON.stringify(defaultState));
     state.stack[0] = 0;
 }
 
@@ -99,7 +118,7 @@ function run() {
             const opcode = memory[pc] << 8 | memory[pc + 1];
             const instruction = getInstruction(opcode);
             state = instruction(opcode, JSON.parse(JSON.stringify(state)));
-            printState();
+            // printState();
         }
     }
 
@@ -142,7 +161,8 @@ function printState() {
     console.log(`V:             ${state.v}`);
     console.log(`I:             ${state.i}`);
     console.log(`DelayTimer:    ${state.delayTimer}`);
-    console.log(`SoundTimer:`)
+    console.log(`SoundTimer:    ${state.soundTimer}`);
+    console.log(`Pressed Keys   ${state.pressedKeys}`);
 }
 
 const instructionMap = {
@@ -380,7 +400,8 @@ const instructionMap = {
                 }
             }
         }
-	
+
+        writeToSvg(screen);
         return Object.assign(rest, { v, i, memory, screen });	
     },
     // Ex9E - SKP Vx
