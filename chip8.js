@@ -1,7 +1,7 @@
 'use strict';
 
-const SCREEN_WIDTH = 63;
-const SCREEN_HEIGHT = 31;
+const SCREEN_WIDTH = 64;
+const SCREEN_HEIGHT = 32;
 
 function getDefaultScreen() {
     const screenY = new Array(SCREEN_HEIGHT);
@@ -39,7 +39,7 @@ function  writeToSvg(screen) {
 function getInstruction(opcode) {
     const firstDigit = opcode & 0xF000; 
     switch(firstDigit) {
-        case 0x0:
+        case 0x0000:
             const thirdAndFourthDigits = opcode & 0x00FF;
             
             if (thirdAndFourthDigits === 0xE0 ||
@@ -48,13 +48,13 @@ function getInstruction(opcode) {
             }
 
             return instructionMap[firstDigit];
-        case 0x8:
-        case 0xE:
+        case 0x8000:
+        case 0xE000:
             return instructionMap[opcode & 0xF00F];
-        case 0xF:
-            const lastDigit = 0x000F;
+        case 0xF000:
+            const lastDigit = opcode & 0x000F;
 
-            if (lastDigit = 0x5) {
+            if (lastDigit === 0x0005) {
                 return instructionMap[opcode & 0xF0FF];
             }
 
@@ -66,7 +66,7 @@ function getInstruction(opcode) {
 
 const defaultState = {
         // Program counter
-        pc: 0,
+        pc: 0x200,
 
         // Memory
         memory: new Array(4096),
@@ -101,14 +101,11 @@ const defaultState = {
 let state = {};
 
 
-function constructor() {
-    reset();
-    run();
-}
-
 function reset() {
+    removeKeyPressCallbacks();
     state = JSON.parse(JSON.stringify(defaultState));
     state.stack[0] = 0;
+    attachKeyPressCallbacks();
 }
 
 function run() {
@@ -118,7 +115,16 @@ function run() {
             const opcode = memory[pc] << 8 | memory[pc + 1];
             const instruction = getInstruction(opcode);
             state = instruction(opcode, JSON.parse(JSON.stringify(state)));
-            // printState();
+            if (![0x1000, 0x2000, 0xB000].includes(0xF000 & opcode)) {
+                state.pc += 2;
+            }
+            if (state.delayTimer > 0) {
+                state.delayTimer -= 1;
+            }
+            if (state.soundTimer > 0) {
+                state.soundTimer -= 1;
+            }
+            //printState(opcode);
         }
     }
 
@@ -126,55 +132,74 @@ function run() {
 }
 
 function keyDownCallback({ keyCode }) {
-    state.pressedKeys.push(keyCode);
-    state.haltForKeyPress = false;
+    if (!state.pressedKeys.includes(keyMap[keyCode])) {
+        state.pressedKeys.push(keyMap[keyCode]);
+    }
+
+    if (state.haltForKeyPress) {
+        v[x] = keyMap[keyCode];
+        state.haltForKeyPress = false;
+    }
 }
 
 function keyUpCallback({ keyCode }) {
-    state.pressedKeys.filter((key) => {
-        return key != keyCode;
+    state.pressedKeys = state.pressedKeys.filter((key) => {
+        return key !== keyMap[keyCode];
     });
 }
 
-function attachKeyPressCallbacks(element) {
-    element.addEventListener('keydown', keyDownCallback);
-    element.addEventListener('keyup', keyUpCallback);
+function attachKeyPressCallbacks() {
+    const screen = document.getElementById("screen");
+    document.addEventListener('keydown', keyDownCallback);
+    document.addEventListener('keyup', keyUpCallback);
 }
 
-function removeKeyPressCallbacks(element) {
-    element.removeEventListener('keydown', keyDownCallback);
-    element.removeEventListener('keyup', keyUpCallback);
+function removeKeyPressCallbacks() {
+    const screen = document.getElementById("screen");
+    screen.removeEventListener('keydown', keyDownCallback);
+    screen.removeEventListener('keyup', keyUpCallback);
 }
 
 function loadRomToMemory(rom) {
-    const romIntArray = new Uint8Array(rom);
+    const reader = new FileReader();
+     
+    reader.onload = () => {
+        const buffer = reader.result;
+        const romIntArray = new Uint8Array(buffer)
 
-    reset();
-    state.memory.splice(0x200,romIntArray.length, ...romIntArray);
+        reset();
+        state.memory.splice(0x200,romIntArray.length, ...romIntArray);
+        run();
+    };
+
+    reader.readAsArrayBuffer(rom);
 }
 
-function printState() {
+function printState(opcode) {
     console.log('________________________________');
-    console.log(`PC:            ${state.pc}`);
+    console.log(`PC:            ${state.pc.toString(16)}`);
     console.log(`Stack:         ${state.stack}`);
     console.log(`Sp:            ${state.sp}`);
     console.log(`V:             ${state.v}`);
-    console.log(`I:             ${state.i}`);
+    console.log(`I:             ${state.i.toString(16)}`);
     console.log(`DelayTimer:    ${state.delayTimer}`);
     console.log(`SoundTimer:    ${state.soundTimer}`);
     console.log(`Pressed Keys   ${state.pressedKeys}`);
+    console.log(`Opcode   ${opcode.toString(16)}`);
 }
 
 const instructionMap = {
     // 0nnn - SYS addr
-    0x0: (opcode, state) => {
+    0x0000: (opcode, state) => {
         const pc = 0x0FFF & opcode;
 
         return Object.assign(state, { pc });
     },
     // 00E0 - CLS
-    0x00E0: () => {
-        // clear the display
+    0x00E0: (opcode, state) => {
+        state.screen = getDefaultScreen();
+
+        return state;
     },
     // 00EE - RET
     0x00EE: (opcode, { sp, stack, ...rest }) => {
@@ -184,22 +209,22 @@ const instructionMap = {
         return Object.assign(rest, { pc, sp: newSp, stack });
     },
     // 1nnn - JP addr
-    0x1: (opcode, state) => {
+    0x1000: (opcode, state) => {
         const pc = opcode & 0x0FFF;
 
         return Object.assign(state, { pc });
     },
     // 2nnn - CALL addr 
-    0x2: (opcode, { pc, stack, sp, ...rest }) => {
+    0x2000: (opcode, { pc, stack, sp, ...rest }) => {
         const newSp = sp + 1;
         const newPc = opcode & 0x0FFF;
-        stack[sp] = pc;
+        stack[newSp] = pc;
 
         return Object.assign(rest, { stack, sp: newSp, pc: newPc });
     },
     // 3xkk - SE Vx, byte
-    0x3: (opcode, { v, pc,  ...rest }) => {
-        const register = opcode & 0x0F00;
+    0x3000: (opcode, { v, pc,  ...rest }) => {
+        const register = (opcode & 0x0F00) >> 8;
         const compareVal = opcode & 0x00FF; 
         let newPc = pc;
         
@@ -210,8 +235,8 @@ const instructionMap = {
         return Object.assign(rest, { pc: newPc, v });
     },
     // 4xkk SNE Vx, byte
-    0x4: (opcode, { v, pc, ...rest }) => {
-        const register = opcode & 0x0F00;
+    0x4000: (opcode, { v, pc, ...rest }) => {
+        const register = (opcode & 0x0F00) >> 8;
         const compareVal = opcode & 0x00FF; 
         let newPc = pc;
 
@@ -222,9 +247,9 @@ const instructionMap = {
         return Object.assign(rest, { pc: newPc, v});
     },
     // 5xy0 SE Vx, Vy
-    0x5: (opcode, { v, pc, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0; 
+    0x5000: (opcode, { v, pc, ...rest }) => {
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4; 
         let newPc = pc;
 
         if (v[x] === v[y]) {
@@ -234,18 +259,18 @@ const instructionMap = {
         return Object.assign(rest, { pc: newPc, v });
     },
     // 6xkk - LD Vx, byte
-    0x6: (opcode, { v, ...rest }) => {
+    0x6000: (opcode, { v, ...rest }) => {
         const data = opcode & 0x00FF;
-        const register = opcode & 0x0F00;
+        const register = (opcode & 0x0F00) >> 8;
 
         v[register] = data;
 
         return Object.assign(rest, { v });
     },
     // 7xkk - ADD Vx, byte
-    0x7: (opcode, { v, ...rest }) => {
+    0x7000: (opcode, { v, ...rest }) => {
         const data = opcode & 0x00FF;
-        const register = opcode & 0x0F00;
+        const register = (opcode & 0x0F00) >> 8;
 
         v[register] += data;
 
@@ -253,8 +278,8 @@ const instructionMap = {
     },
     // 8xy0 - LD Vx, Vy
     0x8000: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         
         v[x] = v[y];
 
@@ -262,8 +287,8 @@ const instructionMap = {
     },
     // 8xy1 - OR Vx, Vy
     0x8001: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         
         v[x] = v[x] | v[y];
 
@@ -271,8 +296,8 @@ const instructionMap = {
     },
     // 8xy2 - AND Vx, Vy
     0x8002: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         
         v[x] = v[x] & v[y];
 
@@ -280,8 +305,8 @@ const instructionMap = {
     },
     // 8xy3 - XOR Vx, Vy
     0x8003: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         
         v[x] ^= v[y];
 
@@ -289,8 +314,8 @@ const instructionMap = {
     },
     // 8xy4 - ADD Vx, Vy
     0x8004: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         let result = x + y;
         v[0xF] = 0;
 
@@ -305,8 +330,8 @@ const instructionMap = {
     },
     // 8xy5 - SUB Vx, Vy
     0x8005: (opcode, { v, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         v[0xF] = 0;
 
         if (x > y) {
@@ -319,6 +344,7 @@ const instructionMap = {
     },
     // 8xy6 - SHR Vx {, Vy}
     0x8006: (opcode, { v, ...rest }) => {
+        const x = (opcode & 0x0F00) >> 4;
         v[0xF] = 0x0001 & opcode;
         v[x] /= 2; 
 
@@ -326,8 +352,8 @@ const instructionMap = {
     },
     // 8xy7 - SUBN Vx, Vy
     0x8007: () => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         v[0xF] = 0;
 
         if (y > x) {
@@ -340,15 +366,16 @@ const instructionMap = {
     },
     // 8xyE - SHL Vx {, Vy}
     0x800E: (opcode, { v, ...rest }) => {
-        v[0xF] = 0x8000 & opcode;
+        const x = (opcode & 0x0F00) >> 8;
+        v[0xF] = (0x8000 & opcode) >> 15;
         v[x] *= 2; 
 
         return Object.assign(rest, { v });
     },
     // 9xy0 - SNE Vx, Vy
-    0x9: (opcode, { v, pc, ...rest }) => {
-        const x = opcode & 0x0F00;
-        const y = opcode & 0x00F0;
+    0x9000: (opcode, { v, pc, ...rest }) => {
+        const x = (opcode & 0x0F00) >> 8;
+        const y = (opcode & 0x00F0) >> 4;
         let newPc = pc;
 
         if (v[x] !== v[y]) {
@@ -358,20 +385,20 @@ const instructionMap = {
         return Object.assign(rest, { pc: newPc, v });
     },
     // Annn - LD I, addr
-    0xA: (opcode, state) => {
+    0xA000: (opcode, state) => {
         const i = opcode & 0x0FFF;
 
         return Object.assign(state, { i });
     },
     // Bnnn - JP V0, addr
-    0xB: (opcode, { v, ...rest }) => {
+    0xB000: (opcode, { v, ...rest }) => {
         const pc = (0x0FFF & opcode) + v[0];
 
         return Object.assign(rest, { pc, v });
     },
     // Cxkk - RND Vx, byte
-    0xC: (opcode, { v, ...rest }) => {
-        const x = 0x0F00 & opcode;
+    0xC000: (opcode, { v, ...rest }) => {
+        const x = (0x0F00 & opcode) >> 8;
         const rand = Math.floor(Math.random() * Math.floor(0xFF));
 
         v[x] = rand & (0xFF & opcode);
@@ -379,20 +406,20 @@ const instructionMap = {
         return Object.assign(rest, { v });
     },
     // Dxyn - DRW Vx, Vy, nibble
-    0xD: (opcode, { v, i, memory, screen,  ...rest }) => {
-        const vX = v[0x0F00 & opcode];
-        const vY = v[0x00F0 & opcode];
+    0xD000: (opcode, { v, i, memory, screen,  ...rest }) => {
+        const vX = v[(0x0F00 & opcode) >> 8] || 0;
+        const vY = v[(0x00F0 & opcode) >> 4] || 0;
         const n = 0x000F & opcode;
 
-        const sprite = memory.slice(i, n+1);
+        const sprite = memory.slice(i, i+n);
 	
-        for (let i = 0; i < sprite.length; i += 1) {
-            const row = sprite[i];
+        for (let a = 0; a < sprite.length; a += 1) {
+            const row = sprite[a];
             const byte = row.toString(2);
             const fullByte = "00000000".substring(byte.length) + byte;
-            const screenY = (vY + i) % 63;
+            const screenY = (vY + a) % SCREEN_HEIGHT;
             for (let j = 0; j < 8; j += 1) {
-                const screenX = (vX + j) % 63;
+                const screenX = (vX + j) % SCREEN_WIDTH;
                 
                 screen[screenY][screenX] ^= fullByte.charAt(j);
                 if (!screen[screenY][screenX]) {
@@ -408,9 +435,8 @@ const instructionMap = {
     0xE00E: (opcode, { v, pc, pressedKeys, ...rest }) => {
         let newPc = pc;
 
-        if (pressedKeys.includes(v[opcode & 0x0F00])) {
+        if (pressedKeys.includes(v[(opcode & 0x0F00) >> 8])) {
             newPc += 2;
-        
         }
 
         return Object.assign(rest, { pc: newPc, v, pressedKeys })
@@ -419,52 +445,51 @@ const instructionMap = {
     0xE001: (opcode, { v, pc, pressedKeys, ...rest }) => {
         let newPc = pc;
 
-        if (!pressedKeys.includes(v[opcode & 0x0F00])) {
+        if (!pressedKeys.includes(v[(opcode & 0x0F00) >> 8])) {
             newPc += 2;
-        
         }
 
         return Object.assign(rest, { pc: newPc, v, pressedKeys })
     },
     // Fx07 - LD Vx, DT
     0xF007: (opcode, { v, delayTimer, ...rest }) => {
-        const x = 0x0F00 & opcode;
+        const x = (0x0F00 & opcode) >> 8;
 
         v[x] = delayTimer;
 
         return Object.assign(rest, { v, delayTimer });
     },
     //Fx0A - LD Vx, K
-    0xF00A: (opcode, { v, ...rest }) => {
-        return Object.assign(rest, { v, haltForKeyPress: true });
+    0xF00A: (opcode, state) => {
+        return state.haltForKeyPress = (0x0F00 & opcode) >> 8;
     },
     //Fx15 - LD DT, Vx
     0xF015: (opcode, { v, ...rest }) => {
-        const x = 0x0F00 & opcode;
+        const x = (0x0F00 & opcode) >> 8;
 
         return Object.assign(rest, { v, delayTimer: v[x] });
     },
     //Fx18 - LD ST, Vx
     0xF008: (opcode, { v, ...rest }) => {
-        const x = 0x0F00 & opcode;
+        const x = (0x0F00 & opcode) >> 8;
 
         return Object.assign(rest, { v, soundTimer: v[x] });
     },
     //Fx1E - ADD I, Vx
     0xF00E: (opcode, { v, i, ...rest }) => {
-        const x = 0x0F00 & opcode;
+        const x = (0x0F00 & opcode) >> 8;
 
         return Object.assign(rest, { v, i: i + v[x] });
     },
     //Fx29 - LD F, Vx
     0xF009: (opcode, { v, ...rest }) => {
-        const x = 0x0F00 & opcode;
+        const x = (0x0F00 & opcode) >> 8;
 
         return Object.assign(rest, { v, i: hexDisplayMap[v[x]] });
     },
     //Fx33 - LD B, Vx
-    0xF003: (opcode, { v, i, memory }) => {
-        const val = v[0x0F00 & opcode];
+    0xF003: (opcode, { v, i, memory, ...rest }) => {
+        const val = v[(0x0F00 & opcode) >> 8];
         const strVal = val.toString();
         const fullVal = "000".substring(strVal.length) + strval;
 
@@ -475,23 +500,23 @@ const instructionMap = {
         return Object.assign(rest, { v, i, memory });
     },
     //Fx55 - LD [I], Vx
-    0xF055: (opcode, { v, i, memory }) => {
+    0xF055: (opcode, { v, i, memory, ...rest }) => {
         const x = 0x0F00 & opcode;
 
         for (let j = 0; j <= x; j+=1) {
             memory[i+j] = v[j];
         }
 
-        Object.assign(rest, { v, i, memory });
+        return Object.assign(rest, { v, i, memory });
     },
     //Fx65 - LD Vx, [I]
-    0xF065: (opcode, { v, i, memory }) => {
-        const x = 0x0F00 & opcode;
+    0xF065: (opcode, { v, i, memory, ...rest }) => {
+        const x = (0x0F00 & opcode) >> 8;
 
         for (let j = 0; j <= x; j+=1) {
             v[j] = memory[i+j];
         }
-        Object.assign(rest, { v, i, memory });
+        return Object.assign(rest, { v, i, memory });
     }
 
 };
@@ -516,22 +541,20 @@ const hexDisplayMap = {
 }
 
 const keyMap = {
-    0x0: 88,
-    0x1: 49,
-    0x2: 50,
-    0x3: 51,
-    0x4: 81,
-    0x5: 87,
-    0x6: 69,
-    0x7: 65,
-    0x8: 83,
-    0x9: 68,
-    0xA: 90,
-    0xB: 67,
-    0xC: 52,
-    0xD: 82,
-    0xE: 70,
-    0xF: 86
+    88: 0x0,
+    49: 0x1,
+    50: 0x2,
+    51: 0x3,
+    81: 0x4,
+    87: 0x5,
+    69: 0x6,
+    65: 0x7,
+    83: 0x8,
+    68: 0x9,
+    90: 0xA,
+    67: 0xB,
+    52: 0xC,
+    82: 0xD,
+    70: 0xE,
+    86: 0xF
 }
-
-constructor();
