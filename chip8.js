@@ -55,9 +55,13 @@ function  writeToSvg(screen) {
         for (let j = 0; j <SCREEN_WIDTH; j += 1) {
             const pixel = document.getElementById(`${j}_${i}`);
             if (screen[i][j]) {
-                pixel.setAttribute('fill','green');
+                if (pixel.getAttribute('fill') !== 'green') {
+                    pixel.setAttribute('fill','green');
+                }
             } else {
-                pixel.setAttribute('fill','black');
+                if (pixel.getAttribute('fill') !== 'black') {
+                    pixel.setAttribute('fill','black');
+                }
             }
         }
     }
@@ -136,7 +140,7 @@ function reset() {
 }
 
 function run() {
-    for(let x = 0; x < 3; x+=1) {
+    for(let x = 0; x < 5; x+=1) {
         if (!state.haltForKeyPress) {
             const { memory, pc } = state;
             const opcode = memory[pc] << 8 | memory[pc + 1];
@@ -164,7 +168,7 @@ function keyDownCallback({ keyCode }) {
     }
 
     if (state.haltForKeyPress) {
-        v[x] = keyMap[keyCode];
+        state.v[state.haltForKeyPress] = keyMap[keyCode];
         state.haltForKeyPress = false;
     }
 }
@@ -208,7 +212,7 @@ function printState(opcode) {
         console.log(`PC:            ${state.pc.toString(16)}`);
         console.log(`Stack:         ${state.stack}`);
         console.log(`Sp:            ${state.sp}`);
-        console.log(`V:             ${state.v}`);
+        console.log(`V:             ${state.v.map( r => r ? r.toString(16) : 'null')}`);
         console.log(`I:             ${state.i.toString(16)}`);
         console.log(`DelayTimer:    ${state.delayTimer}`);
         console.log(`SoundTimer:    ${state.soundTimer}`);
@@ -383,7 +387,7 @@ const instructionMap = {
     0x8006: (opcode, { v, ...rest }) => {
         const x = (opcode & 0x0F00) >> 8;
         v[0xF] = 0x01 & v[x];
-        v[x] /= 2; 
+        v[x] >>= 1; 
 
         return Object.assign(rest, { v });
     },
