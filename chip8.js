@@ -140,22 +140,26 @@ function reset() {
 }
 
 function run() {
-    for(let x = 0; x < 5; x+=1) {
+    for(let x = 0; x < 10; x+=1) {
         if (!state.haltForKeyPress) {
             const { memory, pc } = state;
             const opcode = memory[pc] << 8 | memory[pc + 1];
             const instruction = getInstruction(opcode);
-            state = instruction(opcode, JSON.parse(JSON.stringify(state)));
+            
+            const newState = instruction(opcode, JSON.parse(JSON.stringify(state)));
+            
+            if (newState.delayTimer > 0) {
+                newState.delayTimer -= 1;
+            }
+            if (newState.soundTimer > 0) {
+                newState.soundTimer -= 1;
+            }
+            printState(opcode, newState, pc);
+
             if (![0x1000, 0x2000, 0xB000].includes(0xF000 & opcode)) {
-                state.pc += 2;
+                newState.pc += 2;
             }
-            if (state.delayTimer > 0) {
-                state.delayTimer -= 1;
-            }
-            if (state.soundTimer > 0) {
-                state.soundTimer -= 1;
-            }
-            printState(opcode);
+            state = newState;
         }
     }
     writeToSvg(state.screen);
@@ -206,21 +210,21 @@ function loadRomToMemory(rom) {
     reader.readAsArrayBuffer(rom);
 }
 
-function printState(opcode) {
+function printState(opcode, newState, currentPc) {
     if (debug === 'full') {
         console.log('________________________________');
-        console.log(`PC:            ${state.pc.toString(16)}`);
-        console.log(`Stack:         ${state.stack}`);
-        console.log(`Sp:            ${state.sp}`);
-        console.log(`V:             ${state.v.map( r => r ? r.toString(16) : 'null')}`);
-        console.log(`I:             ${state.i.toString(16)}`);
-        console.log(`DelayTimer:    ${state.delayTimer}`);
-        console.log(`SoundTimer:    ${state.soundTimer}`);
-        console.log(`Pressed Keys   ${state.pressedKeys}`);
+        console.log(`PC:            ${currentPc.toString(16)}`);
+        console.log(`Stack:         ${newState.stack}`);
+        console.log(`Sp:            ${newState.sp}`);
+        console.log(`V:             ${newState.v.map( r => r ? r.toString(16) : 'null')}`);
+        console.log(`I:             ${newState.i.toString(16)}`);
+        console.log(`DelayTimer:    ${newState.delayTimer}`);
+        console.log(`SoundTimer:    ${newState.soundTimer}`);
+        console.log(`Pressed Keys   ${newState.pressedKeys}`);
         console.log(`Opcode   ${opcode.toString(16)}`);
     } else if (debug === 'min') {
         console.log(`Opcode   ${opcode.toString(16)}`);
-        console.log(`V[b]     ${state.v[0xb]}`);
+        console.log(`V[b]     ${newState.v[0xb]}`);
     }
 }
 
@@ -451,6 +455,7 @@ const instructionMap = {
         const vX = v[(0x0F00 & opcode) >> 8] || 0;
         const vY = v[(0x00F0 & opcode) >> 4] || 0;
         const n = 0x000F & opcode;
+        let collision = 0;
 
         const sprite = memory.slice(i, i+n);
 	
@@ -461,13 +466,16 @@ const instructionMap = {
             const screenY = (vY + a) % SCREEN_HEIGHT;
             for (let j = 0; j < 8; j += 1) {
                 const screenX = (vX + j) % SCREEN_WIDTH;
-                
+                const oldPixel = screen[screenY][screenX];
+
                 screen[screenY][screenX] ^= fullByte.charAt(j);
-                if (!screen[screenY][screenX]) {
-                    v[0xF] = 1;
+                if (!screen[screenY][screenX] && oldPixel) {
+                    collision = 1;
                 }
             }
         }
+
+        v[0xf] = collision;
 
         return Object.assign(rest, { v, i, memory, screen });	
     },
