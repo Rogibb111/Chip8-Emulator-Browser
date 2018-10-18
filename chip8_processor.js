@@ -462,10 +462,8 @@ const instructionMap = {
 };
 
 function reset() {
-    removeKeyPressCallbacks();
     state = JSON.parse(JSON.stringify(defaultState));
     state.stack[0] = 0;
-    attachKeyPressCallbacks();
 }
 
 function run() {
@@ -507,6 +505,19 @@ function run() {
             }
             if (newState.soundTimer > 0) {
                 newState.soundTimer -= 1;
+                if (!soundPlaying) {
+                    oscillator = context.createOscillator();
+                    oscillator.start(context.currentTime);
+                    oscillator.connect(context.destination);
+                    console.log("start")
+                    soundPlaying = true;
+                }
+            } else if (soundPlaying) {
+                oscillator.stop(context.currentTime);
+                oscillator.disconnect(context.destination);
+                oscillator = null;
+                console.log("stop")
+                soundPlaying = false;
             }
             printState(opcode, newState, pc);
 

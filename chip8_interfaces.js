@@ -1,4 +1,7 @@
 'use strict';
+const context = new AudioContext();
+let oscillator = null;
+let soundPlaying = false;
 
 function  writeToSvg(screen) {
     for (let i = 0; i < SCREEN_HEIGHT; i += 1) {
@@ -34,27 +37,24 @@ function keyUpCallback({ keyCode }) {
     });
 }
 
-function attachKeyPressCallbacks() {
-    const screen = document.getElementById("screen");
-    document.addEventListener('keydown', keyDownCallback);
-    document.addEventListener('keyup', keyUpCallback);
-}
-
-function removeKeyPressCallbacks() {
-    const screen = document.getElementById("screen");
-    screen.removeEventListener('keydown', keyDownCallback);
-    screen.removeEventListener('keyup', keyUpCallback);
-}
-
 function loadRomToMemory(rom) {
     const reader = new FileReader();
      
     reader.onload = () => {
         const buffer = reader.result;
         const romIntArray = new Uint8Array(buffer)
+        const screen = document.getElementById("screen");
+
+        screen.removeEventListener('keydown', keyDownCallback);
+        screen.removeEventListener('keyup', keyUpCallback);
 
         reset();
+
+        document.addEventListener('keydown', keyDownCallback);
+        document.addEventListener('keyup', keyUpCallback);
+
         state.memory.splice(0x200,romIntArray.length, ...romIntArray);
+
         run();
     };
 
