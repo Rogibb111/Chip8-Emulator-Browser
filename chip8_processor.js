@@ -2,7 +2,6 @@
 
 const SCREEN_WIDTH = 64;
 const SCREEN_HEIGHT = 32;
-let debug = false;
 const hexChars = [
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
     0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -21,6 +20,44 @@ const hexChars = [
     0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
     0xF0, 0x80, 0xF0, 0x80, 0x80 // F
 ];
+const hexDisplayMap = {
+    0x0: 0x00,
+    0x1: 0x05,
+    0x2: 0x0A,
+    0x3: 0x0F,
+    0x4: 0x14,
+    0x5: 0x19,
+    0x6: 0x1E,
+    0x7: 0x23,
+    0x8: 0x28,
+    0x9: 0x2D,
+    0xA: 0x32,
+    0xB: 0x37,
+    0xC: 0x3C,
+    0xD: 0x41,
+    0xE: 0x46,
+    0xF: 0x4B
+}
+const keyMap = {
+    88: 0x0,
+    49: 0x1,
+    50: 0x2,
+    51: 0x3,
+    81: 0x4,
+    87: 0x5,
+    69: 0x6,
+    65: 0x7,
+    83: 0x8,
+    68: 0x9,
+    90: 0xA,
+    67: 0xB,
+    52: 0xC,
+    82: 0xD,
+    70: 0xE,
+    86: 0xF
+}
+let state = {};
+let debug = false;
 
 function getDefaultScreen() {
     const screenY = new Array(SCREEN_HEIGHT);
@@ -50,187 +87,40 @@ function getDefaultMemory() {
     return memory;
 }
 
-function  writeToSvg(screen) {
-    for (let i = 0; i < SCREEN_HEIGHT; i += 1) {
-        for (let j = 0; j <SCREEN_WIDTH; j += 1) {
-            const pixel = document.getElementById(`${j}_${i}`);
-            if (screen[i][j]) {
-                if (pixel.getAttribute('fill') !== 'green') {
-                    pixel.setAttribute('fill','green');
-                }
-            } else {
-                if (pixel.getAttribute('fill') !== 'black') {
-                    pixel.setAttribute('fill','black');
-                }
-            }
-        }
-    }
-}
-
-function getInstruction(opcode) {
-    const firstDigit = opcode & 0xF000; 
-    switch(firstDigit) {
-        case 0x0000:
-            const thirdAndFourthDigits = opcode & 0x00FF;
-            
-            if (thirdAndFourthDigits === 0xE0 ||
-                thirdAndFourthDigits === 0xEE) {
-                return instructionMap[opcode];
-            }
-
-            return instructionMap[firstDigit];
-        case 0x8000:
-        case 0xE000:
-            return instructionMap[opcode & 0xF00F];
-        case 0xF000:
-            const lastDigit = opcode & 0x000F;
-
-            if (lastDigit === 0x0005) {
-                return instructionMap[opcode & 0xF0FF];
-            }
-
-            return instructionMap[opcode &0xF00F];
-        default:
-            return instructionMap[firstDigit];
-    }
-}
-
 const defaultState = {
-        // Program counter
-        pc: 0x200,
+    // Program counter
+    pc: 0x200,
 
-        // Memory
-        memory: getDefaultMemory(),
+    // Memory
+    memory: getDefaultMemory(),
 
-        // Stack
-        stack: new Array(16),
+    // Stack
+    stack: new Array(16),
 
-        // Stack Pointer
-        sp: 0,
+    // Stack Pointer
+    sp: 0,
 
-        // "V" registers
-        v: new Array(16),
+    // "V" registers
+    v: new Array(16),
 
-        // "I" register
-        i: 0,
+    // "I" register
+    i: 0,
 
-        // Delay timer
-        delayTimer: 0,
+    // Delay timer
+    delayTimer: 0,
 
-        // Sound timer
-        soundTimer: 0,
+    // Sound timer
+    soundTimer: 0,
 
-        // screen[y][x] 
-        screen: getDefaultScreen(),
+    // screen[y][x] 
+    screen: getDefaultScreen(),
 
-        // keyboard presses
-        pressedKeys: [],
+    // keyboard presses
+    pressedKeys: [],
 
-        // halted until a key is pressed
-};      haltForKeyPress: false
-
-let state = {};
-
-
-function reset() {
-    removeKeyPressCallbacks();
-    state = JSON.parse(JSON.stringify(defaultState));
-    state.stack[0] = 0;
-    attachKeyPressCallbacks();
-}
-
-function run() {
-    for(let x = 0; x < 10; x+=1) {
-        if (!state.haltForKeyPress) {
-            const { memory, pc } = state;
-            const opcode = memory[pc] << 8 | memory[pc + 1];
-            const instruction = getInstruction(opcode);
-            
-            const newState = instruction(opcode, JSON.parse(JSON.stringify(state)));
-            
-            if (newState.delayTimer > 0) {
-                newState.delayTimer -= 1;
-            }
-            if (newState.soundTimer > 0) {
-                newState.soundTimer -= 1;
-            }
-            printState(opcode, newState, pc);
-
-            if (![0x1000, 0x2000, 0xB000].includes(0xF000 & opcode)) {
-                newState.pc += 2;
-            }
-            state = newState;
-        }
-    }
-    writeToSvg(state.screen);
-    window.requestAnimationFrame(run);
-}
-
-function keyDownCallback({ keyCode }) {
-    if (!state.pressedKeys.includes(keyMap[keyCode])) {
-        state.pressedKeys.push(keyMap[keyCode]);
-    }
-
-    if (state.haltForKeyPress) {
-        state.v[state.haltForKeyPress] = keyMap[keyCode];
-        state.haltForKeyPress = false;
-    }
-}
-
-function keyUpCallback({ keyCode }) {
-    state.pressedKeys = state.pressedKeys.filter((key) => {
-        return key !== keyMap[keyCode];
-    });
-}
-
-function attachKeyPressCallbacks() {
-    const screen = document.getElementById("screen");
-    document.addEventListener('keydown', keyDownCallback);
-    document.addEventListener('keyup', keyUpCallback);
-}
-
-function removeKeyPressCallbacks() {
-    const screen = document.getElementById("screen");
-    screen.removeEventListener('keydown', keyDownCallback);
-    screen.removeEventListener('keyup', keyUpCallback);
-}
-
-function loadRomToMemory(rom) {
-    const reader = new FileReader();
-     
-    reader.onload = () => {
-        const buffer = reader.result;
-        const romIntArray = new Uint8Array(buffer)
-
-        reset();
-        state.memory.splice(0x200,romIntArray.length, ...romIntArray);
-        run();
-    };
-
-    reader.readAsArrayBuffer(rom);
-}
-
-function printState(opcode, newState, currentPc) {
-    if (debug === 'full') {
-        console.log('________________________________');
-        console.log(`PC:            ${currentPc.toString(16)}`);
-        console.log(`Stack:         ${newState.stack}`);
-        console.log(`Sp:            ${newState.sp}`);
-        console.log(`V:             ${newState.v.map( r => r ? r.toString(16) : 'null')}`);
-        console.log(`I:             ${newState.i.toString(16)}`);
-        console.log(`DelayTimer:    ${newState.delayTimer}`);
-        console.log(`SoundTimer:    ${newState.soundTimer}`);
-        console.log(`Pressed Keys   ${newState.pressedKeys}`);
-        console.log(`Opcode   ${opcode.toString(16)}`);
-    } else if (debug === 'min') {
-        console.log(`Opcode   ${opcode.toString(16)}`);
-        console.log(`V[b]     ${newState.v[0xb]}`);
-    }
-}
-
-function setDebug(state) {
-    debug = state;
-}
+    // halted until a key is pressed
+    haltForKeyPress: false
+}; 
 
 const instructionMap = {
     // 0nnn - SYS addr
@@ -571,40 +461,61 @@ const instructionMap = {
 
 };
 
-const hexDisplayMap = {
-    0x0: 0x00,
-    0x1: 0x05,
-    0x2: 0x0A,
-    0x3: 0x0F,
-    0x4: 0x14,
-    0x5: 0x19,
-    0x6: 0x1E,
-    0x7: 0x23,
-    0x8: 0x28,
-    0x9: 0x2D,
-    0xA: 0x32,
-    0xB: 0x37,
-    0xC: 0x3C,
-    0xD: 0x41,
-    0xE: 0x46,
-    0xF: 0x4B
+function reset() {
+    removeKeyPressCallbacks();
+    state = JSON.parse(JSON.stringify(defaultState));
+    state.stack[0] = 0;
+    attachKeyPressCallbacks();
 }
 
-const keyMap = {
-    88: 0x0,
-    49: 0x1,
-    50: 0x2,
-    51: 0x3,
-    81: 0x4,
-    87: 0x5,
-    69: 0x6,
-    65: 0x7,
-    83: 0x8,
-    68: 0x9,
-    90: 0xA,
-    67: 0xB,
-    52: 0xC,
-    82: 0xD,
-    70: 0xE,
-    86: 0xF
+function run() {
+    for(let x = 0; x < 10; x+=1) {
+        if (!state.haltForKeyPress) {
+            const { memory, pc } = state;
+            const opcode = memory[pc] << 8 | memory[pc + 1];
+            const firstDigit = opcode & 0xF000;
+            let instruction = null;
+            
+            switch(firstDigit) {
+                case 0x0000:
+                    if (opcode & 0x00FF === 0xE0 ||
+                        opcode & 0x00FF === 0xEE) {
+                        instruction = instructionMap[opcode];
+                    }
+        
+                    instruction = instructionMap[firstDigit];
+                    break;
+                case 0x8000:
+                case 0xE000:
+                    instruction = instructionMap[opcode & 0xF00F];
+                    break;
+                case 0xF000:
+                    if (opcode & 0x000F === 0x0005) {
+                        instruction = instructionMap[opcode & 0xF0FF];
+                    }
+        
+                    instruction = instructionMap[opcode & 0xF00F];
+                    break;
+                default:
+                    instruction = instructionMap[firstDigit];
+            }
+            
+            const newState = instruction(opcode, JSON.parse(JSON.stringify(state)));
+            
+            if (newState.delayTimer > 0) {
+                newState.delayTimer -= 1;
+            }
+            if (newState.soundTimer > 0) {
+                newState.soundTimer -= 1;
+            }
+            printState(opcode, newState, pc);
+
+            if (![0x1000, 0x2000, 0xB000].includes(0xF000 & opcode)) {
+                newState.pc += 2;
+            }
+            state = newState;
+        }
+    }
+    writeToSvg(state.screen);
+    window.requestAnimationFrame(run);
 }
