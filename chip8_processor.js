@@ -476,23 +476,23 @@ function run() {
             
             switch(firstDigit) {
                 case 0x0000:
-                    if (opcode & 0x00FF === 0xE0 ||
-                        opcode & 0x00FF === 0xEE) {
+                    if ((opcode & 0x00FF) === 0xE0 ||
+                        (opcode & 0x00FF) === 0xEE) {
                         instruction = instructionMap[opcode];
-                    }
-        
-                    instruction = instructionMap[firstDigit];
+                    } else {
+                   	 instruction = instructionMap[firstDigit];
+		    }
                     break;
                 case 0x8000:
                 case 0xE000:
                     instruction = instructionMap[opcode & 0xF00F];
                     break;
                 case 0xF000:
-                    if (opcode & 0x000F === 0x0005) {
+                    if ((opcode & 0x000F) === 0x0005) {
                         instruction = instructionMap[opcode & 0xF0FF];
-                    }
-        
-                    instruction = instructionMap[opcode & 0xF00F];
+                    } else {
+                    	instruction = instructionMap[opcode & 0xF00F];
+		    }
                     break;
                 default:
                     instruction = instructionMap[firstDigit];
